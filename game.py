@@ -115,8 +115,7 @@ def bot(config):
     if config.deleter_bot == "ON":
         manager.add_cycle(deleter(config), config.deleter_delay, "Ciclo de Deleter")
 
-    if config.autopick_enabled == "ON":
-        manager.add_cycle(autopick_items(config), config.autopick_delay, "Ciclo de Autopick")
+    # Autopick será chamado após matar mobs, não em ciclos
 
     if config.get_back == "ON":
         for _ in range(5):
@@ -136,6 +135,9 @@ def bot(config):
         if config.char_type == "Stamina":
             tab(config)
             kill(config)
+            # Após matar o mob, executa o autopick se habilitado
+            if config.autopick_enabled == "ON":
+                autopick_items(config)
             stamina_cure(config)
             dead(config)
 
@@ -674,7 +676,7 @@ class GameConfig:
                  buff_2, skill_1, skill_2, potion_hp,
                  skill_3, skill_4, skill_5, skill_6, sit, low_hp,
                  spot_farm, unstuck_speed, buff_delay, deleter_bot, deleter_delay, map,
-                 cords, revive_and_back, autopick_enabled="OFF", autopick_delay=5, autopick_x=0, autopick_y=0):
+                 cords, revive_and_back, autopick_enabled="OFF", autopick_x=0, autopick_y=0):
         self.hwnd = hwnd
         self.char_name = char_name
         self.resolution = resolution
@@ -705,7 +707,6 @@ class GameConfig:
         self.distance = distance
         self.revive_and_back = revive_and_back
         self.autopick_enabled = autopick_enabled
-        self.autopick_delay = autopick_delay
         self.autopick_x = autopick_x
         self.autopick_y = autopick_y
 
@@ -791,7 +792,6 @@ class Game:
             distance=self.settings[target]["DISTANCE"],
             revive_and_back=self.settings[target]["REVIVE_AND_BACK"],
             autopick_enabled=self.settings[target].get("AUTOPICK_ENABLED", "OFF"),
-            autopick_delay=self.settings[target].get("AUTOPICK_DELAY", 5),
             autopick_x=self.settings[target].get("AUTOPICK_X", 400),
             autopick_y=self.settings[target].get("AUTOPICK_Y", 400)
         )
@@ -874,27 +874,32 @@ class CycleManager:
 
 
 def autopick_items(config):
-    """Função para coletar automaticamente os itens com o botão Pick up all"""
-    def inner():
-        try:
-            print("Executando autopick de itens...")
+    """Função para coletar automaticamente os itens após matar um mob"""
+    try:
+        if config.autopick_enabled != "ON":
+            return
             
-            # Clica com o botão direito na posição central para abrir menu contextual
-            right(config.hwnd, int(cords_move["stop"][0]), int(cords_move["stop"][1]))
-            time.sleep(0.3)
-            
-            # Clica no botão "Pick up all" usando as coordenadas configuradas
-            pick_x = config.autopick_x
-            pick_y = config.autopick_y
-            
-            print(f"Clicando em Pick up all nas coordenadas: ({pick_x}, {pick_y})")
-            left(config.hwnd, int(pick_x), int(pick_y))
-            time.sleep(0.2)
-            
-        except Exception as e:
-            print(f"Erro na função autopick: {e}")
-    
-    return inner
+        print("Executando autopick de itens...")
+        
+        # Aguarda um pouco para os itens aparecerem no chão
+        time.sleep(0.5)
+        
+        # Clica com o botão direito na posição central para abrir menu contextual
+        right(config.hwnd, int(cords_move["stop"][0]), int(cords_move["stop"][1]))
+        time.sleep(0.5)
+        
+        # Clica no botão "Pick up all" usando as coordenadas configuradas
+        pick_x = config.autopick_x
+        pick_y = config.autopick_y
+        
+        print(f"Clicando em Pick up all nas coordenadas: ({pick_x}, {pick_y})")
+        left(config.hwnd, int(pick_x), int(pick_y))
+        time.sleep(0.3)
+        
+        print("Autopick concluído, procurando próximo alvo...")
+        
+    except Exception as e:
+        print(f"Erro na função autopick: {e}")
 
 
 if __name__ == "__main__":

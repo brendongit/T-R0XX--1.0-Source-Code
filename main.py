@@ -736,18 +736,7 @@ class Home(QWidget):
         self.autopick_checkbox.setStyleSheet(self.labels_style)
         self.autopick_checkbox.setChecked(False)
 
-        # Slider for AUTOPICK_DELAY (in seconds)
-        self.autopick_delay_slider = QSlider(Qt.Orientation.Horizontal)
-        self.autopick_delay_slider.setRange(1, 30)
-        self.autopick_delay_slider.setValue(5)
-        self.autopick_delay_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.autopick_delay_slider.setTickInterval(5)
-        self.autopick_delay_slider.valueChanged.connect(self.update_autopick_delay_label)
-
-        # Label for AUTOPICK_DELAY
-        self.autopick_delay_label = QLabel(f"Autopick Delay: {self.autopick_delay_slider.value()} sec")
-        self.autopick_delay_label.setStyleSheet(self.labels_style)
-        self.autopick_delay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Autopick não precisa mais de delay - executa após matar cada mob
 
         self.l1 = QHBoxLayout() # LINHA 1
         self.l1.addWidget(self.low_hp_label)
@@ -779,9 +768,6 @@ class Home(QWidget):
         self.l12 = QHBoxLayout()
         self.l12.addWidget(self.autopick_checkbox)
         self.l12.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        self.l13 = QHBoxLayout()
-        self.l13.addWidget(self.autopick_delay_label)
-        self.l13.addWidget(self.autopick_delay_slider)
 
         self.left_layout.addLayout(self.l1)
         #self.left_layout.addLayout(self.l2)
@@ -794,7 +780,6 @@ class Home(QWidget):
         self.left_layout.addLayout(self.l9)
         self.left_layout.addLayout(self.l11)
         self.left_layout.addLayout(self.l12)
-        self.left_layout.addLayout(self.l13)
         self.center_layout.addLayout(self.left_layout)
 
         self.right_layout = QVBoxLayout()
@@ -939,8 +924,6 @@ class Home(QWidget):
     def update_deleter_delay_label(self):
         self.deleter_delay_label.setText(f"Deleter Delay: {self.deleter_delay_slider.value()} min")
 
-    def update_autopick_delay_label(self):
-        self.autopick_delay_label.setText(f"Autopick Delay: {self.autopick_delay_slider.value()} sec")
 
     def image_create(self):
         """Captura a posição do mouse e salva uma área como imagem BMP."""
@@ -1368,7 +1351,6 @@ class Home(QWidget):
                 "UNSTUCK_SPEED": self.unstuck_slider.value(),
                 "REVIVE_AND_BACK": "ON" if self.revive_back_checkbox.isChecked() else "OFF",
                 "AUTOPICK_ENABLED": "ON" if self.autopick_checkbox.isChecked() else "OFF",
-                "AUTOPICK_DELAY": self.autopick_delay_slider.value(),
             }
             
             # Adicionar coordenadas do autopick se disponíveis
@@ -1416,7 +1398,6 @@ class Home(QWidget):
                 
                 # Carregar configurações do autopick
                 self.autopick_checkbox.setChecked(settings.get("AUTOPICK_ENABLED", "OFF") == "ON")
-                self.autopick_delay_slider.setValue(settings.get("AUTOPICK_DELAY", 5))
                 
                 # Carregar coordenadas do autopick
                 autopick_x = settings.get("AUTOPICK_X", 400)
