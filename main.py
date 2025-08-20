@@ -731,6 +731,24 @@ class Home(QWidget):
         self.revive_back_checkbox.setStyleSheet(self.labels_style)
         self.revive_back_checkbox.setChecked(True)
 
+        # Checkbox for autopick
+        self.autopick_checkbox = QCheckBox("Auto Pick Items")
+        self.autopick_checkbox.setStyleSheet(self.labels_style)
+        self.autopick_checkbox.setChecked(False)
+
+        # Slider for AUTOPICK_DELAY (in seconds)
+        self.autopick_delay_slider = QSlider(Qt.Orientation.Horizontal)
+        self.autopick_delay_slider.setRange(1, 30)
+        self.autopick_delay_slider.setValue(5)
+        self.autopick_delay_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.autopick_delay_slider.setTickInterval(5)
+        self.autopick_delay_slider.valueChanged.connect(self.update_autopick_delay_label)
+
+        # Label for AUTOPICK_DELAY
+        self.autopick_delay_label = QLabel(f"Autopick Delay: {self.autopick_delay_slider.value()} sec")
+        self.autopick_delay_label.setStyleSheet(self.labels_style)
+        self.autopick_delay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self.l1 = QHBoxLayout() # LINHA 1
         self.l1.addWidget(self.low_hp_label)
         self.l1.addWidget(self.low_hp_slider)
@@ -758,6 +776,12 @@ class Home(QWidget):
         self.l11 = QHBoxLayout()
         self.l11.addWidget(self.revive_back_checkbox)
         self.l11.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        self.l12 = QHBoxLayout()
+        self.l12.addWidget(self.autopick_checkbox)
+        self.l12.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        self.l13 = QHBoxLayout()
+        self.l13.addWidget(self.autopick_delay_label)
+        self.l13.addWidget(self.autopick_delay_slider)
 
         self.left_layout.addLayout(self.l1)
         #self.left_layout.addLayout(self.l2)
@@ -769,6 +793,8 @@ class Home(QWidget):
         self.left_layout.addLayout(self.l8)
         self.left_layout.addLayout(self.l9)
         self.left_layout.addLayout(self.l11)
+        self.left_layout.addLayout(self.l12)
+        self.left_layout.addLayout(self.l13)
         self.center_layout.addLayout(self.left_layout)
 
         self.right_layout = QVBoxLayout()
@@ -808,6 +834,25 @@ class Home(QWidget):
         self.get_image_input.setMinimumWidth(110)
         self.get_image_input.setPlaceholderText("Image name")
 
+        # Autopick coordinates
+        self.autopick_coords_label = QLabel("Autopick Coords:")
+        self.autopick_coords_label.setStyleSheet(self.labels_style)
+        self.autopick_coords_input = QLineEdit("400,400")
+        self.autopick_coords_input.setMaximumWidth(110)
+        self.autopick_coords_input.setPlaceholderText("X,Y coordinates")
+        
+        self.get_autopick_button = QPushButton("Get Autopick")
+        self.get_autopick_button.setStyleSheet(self.button_style)
+        self.get_autopick_button.setMaximumWidth(110)
+        self.get_autopick_button.setMinimumWidth(80)
+        self.get_autopick_button.clicked.connect(self.get_autopick_coords)
+        
+        self.autopick_test_button = QPushButton("Test")
+        self.autopick_test_button.setStyleSheet(self.button_style)
+        self.autopick_test_button.setMaximumWidth(40)
+        self.autopick_test_button.setMinimumWidth(40)
+        self.autopick_test_button.clicked.connect(self.test_autopick_coords)
+
         self.r1 = QHBoxLayout()
         self.r1.addWidget(self.spot_farm_label)
         self.r1.addWidget(self.spot_farm_input)
@@ -820,10 +865,19 @@ class Home(QWidget):
         self.r6.addWidget(self.get_image_button)
         self.r6.addItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         self.r6.addWidget(self.get_image_input)
+        self.r7 = QHBoxLayout()
+        self.r7.addWidget(self.autopick_coords_label)
+        self.r7.addWidget(self.autopick_coords_input)
+        self.r8 = QHBoxLayout()
+        self.r8.addWidget(self.get_autopick_button)
+        self.r8.addWidget(self.autopick_test_button)
+        self.r8.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
 
         self.right_layout.addLayout(self.r1)
         self.right_layout.addLayout(self.r5)
         self.right_layout.addLayout(self.r6)
+        self.right_layout.addLayout(self.r7)
+        self.right_layout.addLayout(self.r8)
         self.right_layout.addItem(QSpacerItem(20, 300, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         self.center_layout.addLayout(self.right_layout)
 
@@ -884,6 +938,9 @@ class Home(QWidget):
 
     def update_deleter_delay_label(self):
         self.deleter_delay_label.setText(f"Deleter Delay: {self.deleter_delay_slider.value()} min")
+
+    def update_autopick_delay_label(self):
+        self.autopick_delay_label.setText(f"Autopick Delay: {self.autopick_delay_slider.value()} sec")
 
     def image_create(self):
         """Captura a posição do mouse e salva uma área como imagem BMP."""
@@ -1148,6 +1205,141 @@ class Home(QWidget):
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
+    def get_autopick_coords(self):
+        """Captura as coordenadas para o botão Pick up all"""
+        if not self.pid:
+            print("No window have been selected.")
+            self.main_window.footer.setText("Select a window before capturing the coordinates.")
+            QApplication.processEvents()
+            return
+
+        # Impede execução simultânea
+        if getattr(self, "_autopick_coords_active", False):
+            print("The coordinate capture is already underway.")
+            self.main_window.footer.setText("The coordinate capture is already underway.")
+            QApplication.processEvents()
+            return
+
+        self._autopick_coords_active = True
+        self._autopick_coords_cancelled = False
+
+        try:
+            # Obtém o identificador da janela (HWND) pelo PID
+            hwnd = None
+
+            def enum_callback(handle, _):
+                _, process_pid = win32process.GetWindowThreadProcessId(handle)
+                if process_pid == self.pid and win32gui.IsWindowVisible(handle):
+                    nonlocal hwnd
+                    hwnd = handle
+
+            win32gui.EnumWindows(enum_callback, None)
+
+            if not hwnd:
+                print("The selected window could not be found.")
+                self.main_window.footer.setText("The selected window could not be found.")
+                QApplication.processEvents()
+                self._autopick_coords_active = False
+                return
+
+            print(f"Janela selecionada (HWND): {hwnd}")
+
+            # Obtém as coordenadas do cliente da janela
+            client_pos = win32gui.ClientToScreen(hwnd, (0, 0))
+            client_x, client_y = client_pos
+
+            def on_press(key):
+                try:
+                    if self._autopick_coords_cancelled:
+                        print("Coordinate capture has been canceled.")
+                        return False
+
+                    if key == keyboard.Key.esc:
+                        pt = POINT()
+                        windll.user32.GetCursorPos(ctypes.byref(pt))
+                        mouse_x, mouse_y = pt.x, pt.y
+
+                        # Calcula a posição relativa
+                        relative_x = mouse_x - client_x
+                        relative_y = mouse_y - client_y
+
+                        # Validação dos valores capturados
+                        if isinstance(relative_x, int) and isinstance(relative_y, int):
+                            # Atualiza o campo de entrada
+                            self.autopick_coords_input.setText(f"{relative_x},{relative_y}")
+                            print(f"Autopick coordinates captured: {relative_x},{relative_y}")
+                        else:
+                            print("Erro: Coordenadas capturadas são inválidas.")
+                            self.main_window.footer.setText("Error when capturing coordinates.")
+                            return False
+
+                        self.main_window.footer.setText("")
+                        QApplication.processEvents()
+                        return False  # Encerra o listener
+                except Exception as e:
+                    print(f"Erro no listener de teclado: {e}")
+                    self.main_window.footer.setText("Error when capturing coordinates.")
+                    QApplication.processEvents()
+                    return False  # Garante que o listener será encerrado
+
+            self.main_window.footer.setText(
+                "Move mouse over 'Pick up all' button and press ESC to capture coordinates."
+            )
+            QApplication.processEvents()
+
+            # Criação e gerenciamento do listener de forma segura
+            listener = keyboard.Listener(on_press=on_press)
+            listener.start()
+            listener.wait()  # Aguarda até que o listener seja encerrado
+
+        except Exception as e:
+            print(f"Erro ao capturar posição relativa: {e}")
+            self.main_window.footer.setText("Error when capturing coordinates.")
+            QApplication.processEvents()
+
+        finally:
+            self._autopick_coords_active = False
+            print("Autopick coordinate capture finished.")
+
+    def test_autopick_coords(self):
+        """Testa as coordenadas do autopick clicando na posição configurada"""
+        try:
+            # Abre e lê o arquivo JSON
+            file_name = f"characters/{self.char_name}.json"
+            with open(file_name, "r") as file:
+                hwnd_data = json.load(file)
+
+            # Verifica se o JSON contém o CHAR_NAME esperado
+            if hwnd_data.get("CHAR_NAME") == self.char_name:
+                hwnd = hwnd_data["HWND"]
+                autopick_coords = self.autopick_coords_input.text()  # Exemplo: "400,400"
+
+                if autopick_coords and "," in autopick_coords:
+                    # Separa as coordenadas
+                    coords_split = autopick_coords.split(",")
+                    xPos = int(coords_split[0])
+                    yPos = int(coords_split[1])
+
+                    print(f"Testing autopick at coordinates: ({xPos}, {yPos})")
+
+                    # Realiza o clique no formato adequado
+                    time.sleep(0.1)
+                    left(hwnd, xPos, yPos)
+                    print("Autopick test click performed")
+                else:
+                    print("Invalid autopick coordinates format")
+            else:
+                print(f"No HWND found for character: {self.char_name}")
+
+        except FileNotFoundError:
+            print("Error: JSON file not found.")
+        except json.JSONDecodeError:
+            print("Error: JSON file is not properly formatted.")
+        except KeyError as e:
+            print(f"Error: Missing key in JSON: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred during autopick test: {e}")
+
     def save_settings(self):
         if self.unlock:
             with open('characters/hwnd.json', 'r') as file:
@@ -1175,7 +1367,24 @@ class Home(QWidget):
                 "DISTANCE": self.get_back_slider.value(),
                 "UNSTUCK_SPEED": self.unstuck_slider.value(),
                 "REVIVE_AND_BACK": "ON" if self.revive_back_checkbox.isChecked() else "OFF",
+                "AUTOPICK_ENABLED": "ON" if self.autopick_checkbox.isChecked() else "OFF",
+                "AUTOPICK_DELAY": self.autopick_delay_slider.value(),
             }
+            
+            # Adicionar coordenadas do autopick se disponíveis
+            autopick_coords = self.autopick_coords_input.text()
+            if autopick_coords and "," in autopick_coords:
+                coords_split = autopick_coords.split(",")
+                if len(coords_split) == 2:
+                    try:
+                        settings["AUTOPICK_X"] = int(coords_split[0])
+                        settings["AUTOPICK_Y"] = int(coords_split[1])
+                    except ValueError:
+                        settings["AUTOPICK_X"] = 400
+                        settings["AUTOPICK_Y"] = 400
+            else:
+                settings["AUTOPICK_X"] = 400
+                settings["AUTOPICK_Y"] = 400
             try:
                 file_name = f"characters/{self.char_name}.json"
 
@@ -1204,6 +1413,15 @@ class Home(QWidget):
                 self.get_back_slider.setValue(settings["DISTANCE"])
                 self.unstuck_slider.setValue(settings["UNSTUCK_SPEED"])
                 self.revive_back_checkbox.setChecked(settings["REVIVE_AND_BACK"] == "ON")
+                
+                # Carregar configurações do autopick
+                self.autopick_checkbox.setChecked(settings.get("AUTOPICK_ENABLED", "OFF") == "ON")
+                self.autopick_delay_slider.setValue(settings.get("AUTOPICK_DELAY", 5))
+                
+                # Carregar coordenadas do autopick
+                autopick_x = settings.get("AUTOPICK_X", 400)
+                autopick_y = settings.get("AUTOPICK_Y", 400)
+                self.autopick_coords_input.setText(f"{autopick_x},{autopick_y}")
 
                 print("Settings loaded.")
         except Exception as e:
