@@ -9,7 +9,7 @@ class Pointers:
         self.pm.open_process_from_id(pid)
         self.CLIENT = self.pm.base_address
 
-        # Calcular o ponteiro para TARGET_SELECT
+        # Ponteiros existentes
         self.DC_POINTER = 0x012CE35C
         self.CHAR_NAME_POINTER = 0x011450EC
         self.LEVEL_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0x3C4])
@@ -17,6 +17,7 @@ class Pointers:
         self.HP_PLUS_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0xE4])
         self.HP_BUFF_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0xE0])
         self.MAX_HP_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0xDC])
+        self.GOLD_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0x410])
 
         self.MANA_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0x3BC])
         self.MANA_BUFF_POINTER = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0x6F0])
@@ -40,7 +41,17 @@ class Pointers:
         self.TEAM_NAME_4 = self.get_pointer(0x012CE2E0, offsets=[0x18, 0xA1C, 0x0, 0xC, 0x1F4, 0x54])
 
         self.BAG_OPEN_POINTER = self.get_pointer(0x012CE2E0, offsets=[0x18, 0x5C4, 0x0, 0xC, 0x1F8, 0x42C, 0xBA0])
-        #print("Pointers initialized.", pid)
+        
+        # ✅ NOVOS PONTEIROS PARA LOOT PULL
+        self.LOOT_POINTER = self.get_pointer(self.CLIENT + 0x00EC05C8, offsets=[0xD0, 0x7F4, 0x0, 0x24, 0x40])
+        self.LOOT_WINDOW = 0x0105B958
+        self.TARGET_ID = 0x115CB20
+        
+        # Sistema de busca de objetos
+        self.base = 0x0107C6B0
+        self.basei = 0x0
+        self.BASE_MIN = 0x0000CE00
+        self.BASE_MAX = 0x0EFFFFFF
 
     def get_pointer(self, base_address, offsets):
         """
@@ -48,26 +59,24 @@ class Pointers:
         """
         try:
             address = base_address
-            for offset in offsets:  # Navega pelos offsets até o endereço final
+            for offset in offsets:
                 address = self.pm.read_int(address) + offset
             return address
         except Exception as e:
-            #print(f"Erro ao calcular o ponteiro: {e}")
             return None
 
     def read_value(self, address, data_type="byte"):
         try:
             if data_type == "byte":
-                return self.pm.read_bytes(address, 1)[0]  # Lê 1 byte
+                return self.pm.read_bytes(address, 1)[0]
             elif data_type == "int":
-                return self.pm.read_int(address)  # Lê 4 bytes como inteiro
+                return self.pm.read_int(address)
             elif data_type == "float":
-                return self.pm.read_float(address)  # Lê 4 bytes como float
+                return self.pm.read_float(address)
             else:
                 print(f"Tipo de dado desconhecido: {data_type}")
                 return None
         except Exception as e:
-            #print(f"Erro ao ler valor ({data_type}): {e}")
             return None
 
     def read_string_from_pointer(self, base_pointer, offset=0, max_length=50):
@@ -84,10 +93,9 @@ class Pointers:
     def get_char_name(self):
         name = self.read_string_from_pointer(self.CHAR_NAME_POINTER, offset=0xBC, max_length=50)
 
-        if re.match(r"^[\w]+$", name):  # Alfanumérico
+        if re.match(r"^[\w]+$", name):
             return name
 
-        # Segunda tentativa
         pointer = self.get_pointer(self.CLIENT + 0x00D450EC, offsets=[0xBC])
         if pointer:
             name = self.read_string_from_pointer(pointer, offset=0x0, max_length=50)
@@ -95,10 +103,9 @@ class Pointers:
 
     def get_target_name(self):
         name = self.read_string_from_pointer(self.TARGET_NAME_POINTER, offset=0x9AC, max_length=50)
-        if re.match(r"^[\w ]+$", name):  # Alfanumérico
+        if re.match(r"^[\w ]+$", name):
             return name
 
-        # Segunda tentativa
         pointer = self.get_pointer(0x012CE2E0, offsets=[0x18, 0xB1C, 0x0, 0xC, 0xD9C, 0x9AC])
         if pointer:
             name = self.read_string_from_pointer(pointer, offset=0x0, max_length=50)
@@ -106,8 +113,7 @@ class Pointers:
 
     def team_name_1(self):
         name = self.read_string_from_pointer(self.TEAM_NAME_1, offset=0x4F4, max_length=50)
-
-        if re.match(r"^[\w]+$", name):  # Alfanumérico
+        if re.match(r"^[\w]+$", name):
             return name
         pointer = self.get_pointer(0x012CE2E0, offsets=[0x18, 0x77C, 0x0, 0xC, 0x678, 0x8B4, 0x4F4])
         if pointer:
@@ -149,9 +155,8 @@ class Pointers:
             print("Erro: Ponteiro TARGET_SELECT não calculado.")
             return False
 
-        target = self.read_value(self.TARGET_SELECT, data_type="byte")  # Lê 1 byte
+        target = self.read_value(self.TARGET_SELECT, data_type="byte")
         if target == 1:
-            #print("Target selected")
             return True
         return False
 
@@ -207,7 +212,6 @@ class Pointers:
     def is_in_battle(self):
         battle = self.read_value(self.BATTLE_STATUS_POINTER, data_type="byte")
         if battle == 1:
-            #print("Battle Status")
             return True
 
     def is_sitting(self):
@@ -241,57 +245,120 @@ class Pointers:
         dc = self.read_value(self.DC_POINTER, data_type="int")
         return dc
 
-# Testando o código
-"""pid = 972  # Substitua pelo PID do processo correto
-p = Pointers(pid)
+    def get_gold(self):
+        return self.read_value(self.GOLD_POINTER, data_type="int")
 
-if p.is_target_selected():
-    print("Um alvo está selecionado!")
-else:
-    print("Nenhum alvo está selecionado.")
+    # ✅ NOVAS FUNÇÕES PARA LOOT PULL
+    
+    def get_target_id(self):
+        """Obtém o ID do alvo atual"""
+        id_value = self.read_value(self.TARGET_ID, data_type="int")
+        if id_value is None:
+            return None
+        try:
+            return hex(id_value)[2:].upper()
+        except Exception as e:
+            print(f"Erro ao converter ID para hexadecimal: {e}")
+            return None
 
-name = p.get_char_name()
-print(f"CHAR_NAME: {name}")
-level = p.get_level()
-print(f"LEVEL: {level}")
-team_name_1 = p.team_name_1()
-print(f"TEAM_NAME_1: {team_name_1}")
-team_name_2 = p.team_name_2()
-print(f"TEAM_NAME_2: {team_name_2}")
-team_name_3 = p.team_name_3()
-print(f"TEAM_NAME_3: {team_name_3}")
-team_name_4 = p.team_name_4()
-print(f"TEAM_NAME_4: {team_name_4}")
-hp = p.target_hp()
-print(f"TARGET_HP: {hp}")
-target_name = p.get_target_name()
-print(f"TARGET_NAME: {target_name}")"""
+    def search_id(self):
+        """
+        Busca por objetos no mapa e retorna suas coordenadas
+        """
+        try:
+            targetid = self.get_target_id()
+            if targetid is None:
+                return None, None, None
 
-"""get_hp = p.get_hp()
-print(f"CHAR_HP : {get_hp}")
-hp_plus = p.get_hp_plus()
-print(f"CHAR_HP_PLUS : {hp_plus}")
-hp_buff = p.get_hp_buff()
-print(f"CHAR_HP_BUFF : {hp_buff}")
-max_hp = p.get_max_hp()
-print(f"CHAR_MAX_HP : {max_hp}")
-battle = p.is_in_battle()
-print(f"CHAR_BATTLE_STATUS : {battle}")
-mana = p.get_mana()
-print(f"CHAR_MANA : {mana}")
-mana_buff = p.get_mana_buff()
-print(f"CHAR_MANA_BUFF : {mana_buff}")
-max_mana = p.get_max_mana()
-print(f"CHAR_MAX_MANA : {max_mana}")
-sit = p.is_sitting()
-print(f"CHAR_SIT : {sit}")
-x_pos = p.get_x()
-print(f"CHAR_X_POS : {x_pos}")
-y_pos = p.get_y()
-print(f"CHAR_Y_POS : {y_pos}")
-bag_open = p.is_bag_open()
-print(f"CHAR_BAG_OPEN : {bag_open}")
-team_size = p.get_team_size()
-print(f"TEAM_SIZE : {team_size}")
-dc = p.get_dc()
-print(f"CHAR_DC : {dc}")"""
+            # Busca crescente
+            current_base = self.base
+            while current_base <= self.BASE_MAX:
+                try:
+                    a = self.read_value(current_base + self.basei, "int")
+                    if a is None:
+                        current_base += 0x4
+                        continue
+
+                    b = a + 0x8
+                    c_value = self.read_value(b, "int")
+                    if c_value is None:
+                        current_base += 0x4
+                        continue
+
+                    c = hex(c_value)[2:].upper()
+
+                    if c == targetid:
+                        # Encontrou o objeto
+                        pointer = self.read_value(current_base + self.basei, "int")
+                        if pointer is None:
+                            return None, None, None
+
+                        # Lê as coordenadas
+                        x_value = self.read_value(pointer + 0x810, "float")
+                        y_value = self.read_value(pointer + 0x814, "float")
+
+                        if x_value is None or y_value is None:
+                            return None, None, None
+
+                        target_x = int(x_value / 20)
+                        target_y = int(y_value / 20)
+
+                        self.base = current_base
+                        return target_x, target_y, pointer
+
+                    current_base += 0x4
+
+                except Exception:
+                    current_base += 0x4
+                    continue
+
+            return None, None, None
+
+        except Exception as e:
+            print(f"Erro durante a busca: {e}")
+            return None, None, None
+
+    def write_position(self, pointer, x, y):
+        """
+        Escreve nova posição para um objeto na memória
+        """
+        try:
+            basex = pointer + 0x810
+            basey = pointer + 0x814
+
+            self.pm.write_float(basex, float(x))
+            self.pm.write_float(basey, float(y))
+            return True
+
+        except Exception as e:
+            print(f"Erro ao definir posição: {e}")
+            return False
+
+    def is_loot(self):
+        """Verifica se há loot disponível"""
+        try:
+            loot = self.read_value(self.LOOT_POINTER, data_type="int")
+            return loot and loot > 0
+        except:
+            return False
+
+    def loot_window(self):
+        """Verifica se a janela de loot está aberta"""
+        try:
+            l = self.read_value(self.LOOT_WINDOW, data_type="int")
+            if l is None:
+                return False
+            return l == 1
+        except:
+            return False
+
+    # Funções auxiliares para coordenadas brutas
+    def char_x(self):
+        """Coordenadas X brutas do personagem"""
+        x = self.read_value(self.X_POINTER, data_type="float")
+        return x if x is not None else 0
+
+    def char_y(self):
+        """Coordenadas Y brutas do personagem"""  
+        y = self.read_value(self.Y_POINTER, data_type="float")
+        return y if y is not None else 0
